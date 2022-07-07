@@ -1,0 +1,72 @@
+# pv and pvc
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: node-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 700Mi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /host/files
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: node-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 700Mi
+---
+# node app service
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-app-service
+spec:
+  selector:
+    app: node-app 
+  type: LoadBalancer
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 8081
+    nodePort: 31110
+---
+# node app deployement
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-app-deployment
+  labels:
+    app: node-app
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: node-app
+  template:
+    metadata:
+      labels:
+        app: node-app 
+    spec:
+      containers:
+      - name: node-app
+        image: ravi20930/seekright:test-backend
+        ports:
+        - containerPort: 8081
+        volumeMounts:
+        - name: node-persistent-storage
+          mountPath: /host/files
+      volumes:
+      - name: node-persistent-storage
+        persistentVolumeClaim:
+          claimName: node-pv-claim

@@ -1,0 +1,113 @@
+ref1: https://levelup.gitconnected.com/deploying-a-complete-node-js-application-in-kubernetes-d747986e1e61
+ref2: https://learnk8s.io/deploying-nodejs-kubernetes
+
+#minikube and kubectl commands
+
+#installing kubectl
+$ sudo curl -L "https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+$ sudo chmod +x /usr/local/bin/kubectl
+$ kubectl version --short --client
+
+#installing minikube (to make k8s cluster locally)
+$ wget https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+$ sudo chmod +x minikube-linux-amd64
+$ sudo mv minikube-linux-amd64 /usr/local/bin/minikube
+$ minikube version
+
+#starting minkube
+$ minikube start
+# sharing folder between host and pods running on minikube cluster
+$ minikube mount <source directory>:<target directory>
+
+#run this command before building image so that it will be linked to minkube cluster
+$ eval $(minikube -p minikube docker-env)
+
+
+$ kubectl get nodes
+$ kubectl get pods
+$ kubectl get services
+
+$ kubectl get jobs
+$ kubectl get all
+$ kubectl get deployments --all-namespaces
+
+$ kubectl apply -f hh-deploy.yaml
+$ kubectl delete -f hh-deploy.yaml
+
+$ kubectl delete --all jobs
+$ kubectl delete svc <service-name>
+
+$ kubectl exec --stdin --tty <pod-name> -- /bin/bash
+
+#to give services external-ip (so that we can access it from browser)
+$ minikube service <service-name>
+
+ravi@tuxx:~$ kubectl get services
+NAME               TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+kubernetes         ClusterIP      10.96.0.1      <none>        443/TCP          57m
+node-app-service   LoadBalancer   10.99.77.100   <pending>     5000:31110/TCP   16s
+
+ravi@tuxx:~$ minikube service node-app-service
+|-----------|------------------|-------------|---------------------------|
+| NAMESPACE |       NAME       | TARGET PORT |            URL            |
+|-----------|------------------|-------------|---------------------------|
+| default   | node-app-service |        5000 | http://192.168.49.2:31110 |
+|-----------|------------------|-------------|---------------------------|
+🎉  Opening service default/node-app-service in default browser...
+
+
+The first Kubernetes resource is a Deployment.
+
+A Deployment creates containers and ensures that they are up and running.
+Here is the definition of a Deployment for a nodejs app:
+
+#deployement
+apiVersion: apps/v1 #version of resource type
+kind: Deployment #type of resource
+metadata:
+  name: node-app-deployment #name of this specific resource
+  labels:
+    app: node-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-app
+  template:
+    metadata:
+      labels:
+        app: node-app #defines a label for the Pod that wraps node-app container
+    spec:
+      containers:
+      - name: node-app
+        image: ravi20930/seekright:hh-backend
+        ports:
+        - containerPort: 3000
+
+In Kubernetes, usually, we talk about pods rather than containers, the smallest unit of deployment in Kubernetes. It is a wrapper around one or more containers, often contains only a single container — however, for advanced use cases, a pod may have multiple containers.
+If a pod contains multiple containers, they are treated by Kubernetes as a unit — this means that they will be started, executed and stopped together on the same node.
+
+The second Kubernetes resource is a Service.
+
+A Service resource makes pods accessible to other pods or users outside the cluster, without a service, a Pod cannot be accessed at all. It forwards requests to a set of pods.
+
+#service
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-app-service
+spec:
+  selector:
+    app: node-app #selects the pod to expose according to labels, service will expose all pods with template.metadata.labels: node-app
+  type: LoadBalancer #this makes the exposed pods accessible from outside the cluster
+  ports:
+  - protocol: TCP
+    port: 5000 #service listens for requests on port 5000 and forwards them to port 3000 of the target pods
+    targetPort: 3000
+    nodePort: 31110
+
+The default Service type is ClusterIP, which makes the exposed pods only accessible from within the cluster.
+Beyond exposing your containers, a Service also ensures continuous availability for your app.
+If one of the pod crashes and is restarted, the Service makes sure not to route traffic to this container until it is ready again.
+Also, when the pod is restarted and a new IP address is assigned, the Service automatically handles the update and routes the traffic to the new pod.
+Furthermore, if you decide to scale your Deployment to 2, 3, 4, or 100 replicas, the Service keeps track of all these Pods.
